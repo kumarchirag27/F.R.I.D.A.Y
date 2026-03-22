@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F.R.I.D.A.Y. - AI-Powered Cybersecurity Reconnaissance Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23ffffff" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .title {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.9;
+        }
+
+        .description {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        .warning {
+            background: rgba(255, 69, 58, 0.1);
+            border: 1px solid #ff453a;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-style: italic;
+            color: #ff453a;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .nav {
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #495057;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .nav a:hover {
+            background: #007bff;
+            color: white;
+        }
+
+        h1 {
+            color: #1a1a2e;
+            font-size: 2.5rem;
+            margin: 2rem 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #007bff;
+        }
+
+        h2 {
+            color: #2c3e50;
+            font-size: 2rem;
+            margin: 1.5rem 0 1rem 0;
+            padding-left: 1rem;
+            border-left: 4px solid #17a2b8;
+        }
+
+        h3 {
+            color: #34495e;
+            font-size: 1.5rem;
+            margin: 1.25rem 0 0.75rem 0;
+            padding-left: 0.5rem;
+            border-left: 3px solid #28a745;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            text-align: justify;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #f8f8f2;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            border-left: 4px solid #007bff;
+        }
+
+        .prompt-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            font-style: italic;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .prompt-box::before {
+            content: "💬 Claude Code Prompt:";
+            display: block;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-style: normal;
+        }
+
+        .lovable-prompt {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        }
+
+        .lovable-prompt::before {
+            content: "🎨 Lovable.dev Prompt:";
+        }
+
+        .architecture-box {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            font-family: monospace;
+            white-space: pre-line;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        tr:hover {
+            background: #e7f3ff;
+        }
+
+        ul, ol {
+            margin: 1rem 0;
+            padding-left: 2rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .step-box {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border-left: 5px solid #155724;
+        }
+
+        .step-box h3 {
+            color: white;
+            border: none;
+            padding: 0;
+            margin: 0 0 1rem 0;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-left: 5px solid #ffc107;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .danger-box {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            border-left: 5px solid #dc3545;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            border: 1px solid #17a2b8;
+            border-left: 5px solid #17a2b8;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+        }
+
+        .folder-structure {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 1rem 0;
+            white-space: pre-line;
+            overflow-x: auto;
+        }
+
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .tech-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .tech-card h4 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                box-shadow: none;
+            }
+            
+            .header {
+                padding: 2rem 1rem;
+            }
+            
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .content {
+                padding: 1rem;
+            }
+            
+            .nav {
+                padding: 1rem;
+            }
+            
+            .nav ul {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        .footer {
+            background: #1a1a2e;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1 class="title">F.R.I.D.A.Y.</h1>
+                <p class="subtitle">AI-Powered Cybersecurity Reconnaissance Assistant</p>
+                <p class="description">Complete Build Plan & Documentation</p>
+                <p><strong>Lovable.dev (Frontend) + Claude Code (Backend)</strong></p>
+                <div class="warning">
+                    ⚠️ For Educational & Authorized Security Research Only
+                </div>
+            </div>
+        </div>
+
+        <nav class="nav">
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#setup">Setup</a></li>
+                <li><a href="#backend">Backend</a></li>
+                <li><a href="#frontend">Frontend</a></li>
+                <li><a href="#safety">Safety</a></li>
+                <li><a href="#testing">Testing</a></li>
+                <li><a href="#resources">Resources</a></li>
+            </ul>
+        </nav>
+
+        <div class="content">
+            <section id="overview">
+                <h1>🏗️ Architecture Overview</h1>
+                
+                <p>F.R.I.D.A.Y. is a voice-controlled AI assistant specialized for cybersecurity reconnaissance. It combines modern web technologies with powerful OSINT tools to create an Iron Man JARVIS-style interface for authorized security testing.</p>
+
+                <div class="architecture-box">┌─────────────────────────────────────────────────┐
+│           FRIDAY Frontend (Lovable.dev)          │
+│   React + Tailwind + Futuristic UI Components   │
+└──────────────────┬──────────────────────────────┘
+                   │ WebSocket / REST API
+┌──────────────────▼──────────────────────────────┐
+│           FRIDAY Backend (Claude Code)           │
+│         Node.js / Python FastAPI Server          │
+└──────┬──────────┬──────────┬────────────────────┘
+       │          │          │
+  ┌────▼───┐ ┌───▼────┐ ┌───▼──────────┐
+  │  LLM   │ │ Tools  │ │  Recon       │
+  │ Groq / │ │ Layer  │ │  Modules     │
+  │Anthropic│ │(Router)│ │  (OSINT etc) │
+  └────────┘ └────────┘ └──────────────┘</div>
+
+                <h2>🚀 Key Features</h2>
+                <ul>
+                    <li>Voice-controlled interface with JARVIS-like personality</li>
+                    <li>Automated OSINT gathering and analysis</li>
+                    <li>Real-time reconnaissance with streaming results</li>
+                    <li>Multi-platform support (Windows, Mac, Linux)</li>
+                    <li>Draggable futuristic UI components</li>
+                    <li>Built-in authorization and ethics controls</li>
+                    <li>Detailed intelligence reports with PDF export</li>
+                </ul>
+            </section>
+
+            <section id="setup">
+                <h1>⚙️ Phase 1: Project Setup</h1>
+
+                <div class="step-box">
+                    <h3>Step 1 — Repository Structure</h3>
+                    <p>Create this exact folder structure before starting any development:</p>
+                </div>
+
+                <div class="folder-structure">FRIDAY/
+├── frontend/          ← Lovable.dev exports here
+├── backend/
+│   ├── server.py      ← FastAPI main server
+│   ├── tools/
+│   │   ├── dns_recon.py
+│   │   ├── ip_recon.py
+│   │   ├── whois_tool.py
+│   │   ├── port_scanner.py
+│   │   ├── subdomain_enum.py
+│   │   ├── header_analyzer.py
+│   │   └── osint_aggregator.py
+│   ├── llm/
+│   │   ├── brain.py        ← LLM orchestration
+│   │   └── prompts.py      ← System prompts
+│   ├── voice/
+│   │   ├── stt.py          ← Speech to text
+│   │   └── tts.py          ← Text to speech
+│   ├── .env
+│   └── requirements.txt
+└── README.md</div>
+
+                <div class="step-box">
+                    <h3>Step 2 — API Keys Required</h3>
+                    <p>Obtain these API keys before writing any code. All have free tiers sufficient for development:</p>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Purpose</th>
+                            <th>Website</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Groq API</td>
+                            <td>LLM brain (fast)</td>
+                            <td>console.groq.com</td>
+                        </tr>
+                        <tr>
+                            <td>Shodan</td>
+                            <td>IP/device intel</td>
+                            <td>shodan.io</td>
+                        </tr>
+                        <tr>
+                            <td>VirusTotal</td>
+                            <td>Domain/IP reputation</td>
+                            <td>virustotal.com</td>
+                        </tr>
+                        <tr>
+                            <td>SecurityTrails</td>
+                            <td>DNS history</td>
+                            <td>securitytrails.com</td>
+                        </tr>
+                        <tr>
+                            <td>ipapi.co</td>
+                            <td>IP geolocation</td>
+                            <td>ipapi.co</td>
+                        </tr>
+                        <tr>
+                            <td>Have I Been Pwned</td>
+                            <td>Breach data</td>
+                            <td>haveibeenpwned.com</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="danger-box">
+                    <strong>CRITICAL:</strong> Store all API keys in .env file, never hardcode in source
+                </div>
+            </section>
+
+            <section id="backend">
+                <h1>🐍 Phase 2: Backend (Claude Code)</h1>
+
+                <div class="step-box">
+                    <h3>Step 3 — FastAPI Server</h3>
+                </div>
+
+                <div class="prompt-box">
+                    Create a FastAPI server in Python with WebSocket support, CORS enabled, and a REST endpoint `/api/friday` that accepts a JSON body with fields: `query` (string), `target` (string, optional), `mode` (string). Also create a WebSocket endpoint at `/ws` for real-time streaming responses.
+                </div>
+
+                <div class="step-box">
+                    <h3>Step 4 — LLM Brain (brain.py)</h3>
+                </div>
+
+                <div class="prompt-box">
+                    Create a `brain.py` file that connects to the Groq API using the groq Python SDK. Use model `llama-3.3-70b-versatile`. Give FRIDAY a system prompt that defines it as a cybersecurity recon assistant. It should parse user intent, decide which recon tool to call, call it, then summarize the results in plain English. Use Groq's tool calling / function calling feature so the LLM can trigger recon modules automatically.
+                </div>
+
+                <div class="info-box">
+                    <strong>System Prompt Template:</strong><br>
+                    <em>"You are F.R.I.D.A.Y., an AI-powered cybersecurity reconnaissance assistant. You only operate on targets the user explicitly provides and confirms they have authorization to test. You never assume authorization. Before any recon, confirm the target and scope. Respond like JARVIS — professional, precise, concise."</em>
+                </div>
+
+                <h2>🔧 Step 5 — Reconnaissance Tool Modules</h2>
+                <p>Build each tool as a standalone Python function. Tell Claude Code to create these modules:</p>
+
+                <h3>Tool 1 — DNS Reconnaissance (dns_recon.py)</h3>
+                <div class="prompt-box">
+                    Build a DNS recon tool using Python's `dnspython` library. Functions needed: `get_a_records(domain)`, `get_mx_records(domain)`, `get_ns_records(domain)`, `get_txt_records(domain)`, `get_cname_records(domain)`. Return results as structured JSON.
+                </div>
+
+                <h3>Tool 2 — WHOIS Lookup (whois_tool.py)</h3>
+                <div class="prompt-box">
+                    Build a WHOIS lookup tool using the `python-whois` library. Extract: registrar, creation date, expiry date, registrant org, name servers, and registrant country. Return as clean JSON.
+                </div>
+
+                <h3>Tool 3 — IP Intelligence (ip_recon.py)</h3>
+                <div class="prompt-box">
+                    Build an IP intelligence tool that queries ipapi.co for geolocation (country, city, ISP, ASN), then queries the Shodan API for open ports and services on that IP. Combine results into a single JSON response.
+                </div>
+
+                <h3>Tool 4 — Port Scanner (port_scanner.py)</h3>
+                <div class="prompt-box">
+                    Build a port scanner using Python's `socket` library for basic scanning and `python-nmap` for service detection. Inputs: `target_ip` (string), `port_range` (string, default '1-1000'), `scan_type` (string: 'basic' or 'service'). Return open ports with service names and versions as JSON. Add a hard warning comment that this should only run against authorized targets.
+                </div>
+
+                <h3>Tool 5 — Subdomain Enumeration (subdomain_enum.py)</h3>
+                <div class="prompt-box">
+                    Build a subdomain enumeration tool. Use two methods: 1) DNS brute force using a wordlist of top 100 common subdomains, 2) Query SecurityTrails API for historical subdomains. Combine and deduplicate results. Return as JSON list with status (alive/dead) for each.
+                </div>
+
+                <h3>Tool 6 — HTTP Header Analysis (header_analyzer.py)</h3>
+                <div class="prompt-box">
+                    Build an HTTP header analyzer using Python `requests`. Fetch headers from a given URL and analyze for: missing security headers (CSP, HSTS, X-Frame-Options, X-Content-Type), server technology leakage, cookie security flags, and HTTPS enforcement. Return findings with severity ratings (HIGH/MEDIUM/LOW/INFO).
+                </div>
+
+                <h3>Tool 7 — OSINT Aggregator (osint_aggregator.py)</h3>
+                <div class="prompt-box">
+                    Build an OSINT aggregator that takes a domain or IP and runs: VirusTotal reputation check, check if domain/IP appears in threat intelligence feeds via VirusTotal, and Have I Been Pwned breach check for associated emails found in WHOIS. Combine all into a risk summary JSON.
+                </div>
+
+                <h2>🔀 Step 6 — Tool Router</h2>
+                <div class="prompt-box">
+                    Create a `tool_router.py` that maps LLM tool call names to actual Python functions. When the LLM returns a tool call like `{tool: 'dns_recon', params: {domain: 'example.com'}}`, this router should execute the right function, handle errors gracefully, and return results back to the LLM for summarization.
+                </div>
+
+                <h2>🎤 Step 7 — Voice Layer (Optional)</h2>
+                <div class="prompt-box">
+                    Create `stt.py` using the `faster-whisper` library for local speech to text — no API needed, runs on device. Create `tts.py` using `edge-tts` with voice `en-US-RyanMultilingualNeural`. Both should stream — STT streams recognized words in real time, TTS streams audio chunks as they're generated.
+                </div>
+            </section>
+
+            <section id="frontend">
+                <h1>🎨 Phase 3: Frontend (Lovable.dev)</h1>
+
+                <h2>Step 8 — Lovable.dev UI Prompts</h2>
+                <p>Open Lovable.dev and use these prompts in sequence:</p>
+
+                <h3>Prompt 1 — Base Layout</h3>
+                <div class="prompt-box lovable-prompt">
+                    Create a full-screen dark futuristic AI assistant UI called FRIDAY. The background should be a deep space / dark tech aesthetic with subtle animated grid lines. Use a color palette of deep black (#0a0a0f), electric blue (#00d4ff), and soft white (#e8f4f8). No rounded corners on main containers — use sharp angular cuts for a military HUD feel. Use the font 'Rajdhani' or 'Orbitron' from Google Fonts.
+                </div>
+
+                <h3>Prompt 2 — Navigation Bar</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a top navbar with sharp angled edges (not rounded). Left side: FRIDAY logo text with a small animated pulse dot. Center: navigation links — Dashboard, Recon, Intel, Settings. Right side: system status indicators showing API status, mic status, and a digital clock. Use liquid glass / frosted glass effect with electric blue border.
+                </div>
+
+                <h3>Prompt 3 — Central Blob Animation</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a central animated blob component that reacts to microphone input. When idle: slow breathing pulse in electric blue. When listening: faster pulse, color shifts to cyan. When processing: rotating animation, color shifts to amber. When responding: wave animation, color shifts to green. The blob should sit center screen.
+                </div>
+
+                <h3>Prompt 4 — Reconnaissance Panel</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a recon input panel below the blob. It should have: a text input field with label 'TARGET', a dropdown for scan type (DNS Recon, IP Intel, Port Scan, Subdomain Enum, Header Analysis, Full OSINT), an authorization checkbox that says 'I confirm I am authorized to scan this target', and a sharp angular EXECUTE button in electric blue. All elements should have the same futuristic HUD styling.
+                </div>
+
+                <h3>Prompt 5 — Results Terminal</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a terminal-style results panel on the right side of the screen. It should look like a real terminal with: a top bar showing 'FRIDAY TERMINAL v1.0', monospace font (JetBrains Mono), green text on near-black background, typing animation when new results arrive, auto-scroll to latest output, and a copy button. Results should stream in line by line.
+                </div>
+
+                <h3>Prompt 6 — Status Widgets</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add four draggable status widgets positioned around the screen. Each widget uses the same sharp angular HUD style. Widget 1: System Status (FRIDAY Online/Offline). Widget 2: Current Scan Progress (progress bar + percentage). Widget 3: Threat Level Indicator (LOW/MEDIUM/HIGH/CRITICAL with color coding). Widget 4: Scan History (last 5 scans as clickable list). All widgets should be right-clickable with Move and Save Position options.
+                </div>
+
+                <h3>Prompt 7 — Intelligence Report View</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a slide-in panel from the right that shows a formatted intelligence report. It should have sections for: Executive Summary, DNS Records table, Open Ports table, OSINT Findings (with severity badges), Security Headers Analysis (color coded), and a Risk Score gauge (0-100). Add an Export as PDF button and a Copy Raw JSON button.
+                </div>
+
+                <h3>Prompt 8 — Voice Interface</h3>
+                <div class="prompt-box lovable-prompt">
+                    Add a microphone button that toggles voice input mode. When active, show a waveform visualizer around the blob. Add a speech transcript display below the blob showing what FRIDAY heard. Add a FRIDAY response display showing what FRIDAY is saying with a typing cursor animation.
+                </div>
+
+                <h2>🔗 Step 9 — Connect Frontend to Backend</h2>
+                
+                <p>After Lovable generates the UI, export the code and tell Claude Code:</p>
+                
+                <div class="prompt-box">
+                    Connect this React frontend to our FastAPI backend. Replace all placeholder functions with real API calls. The recon panel EXECUTE button should POST to `/api/friday` with the target and scan type. Results should stream in via WebSocket at `/ws`. The voice input should send audio to `/api/stt` and play back TTS from `/api/tts`. Handle loading states, errors, and connection drops gracefully.
+                </div>
+            </section>
+
+            <section id="safety">
+                <h1>🛡️ Phase 4: Safety & Ethics Layer</h1>
+
+                <div class="danger-box">
+                    <strong>This section is NON-NEGOTIABLE and must be implemented exactly as specified.</strong>
+                </div>
+
+                <h2>🚨 Step 10 — Authorization Gate (Mandatory)</h2>
+                
+                <div class="prompt-box">
+                    Add a mandatory authorization check before any scan runs. The user must: 1) Check a checkbox confirming authorization, 2) Type the target domain/IP manually (no paste from clipboard auto-fill), 3) A backend middleware should reject any scan request that doesn't include a confirmed authorization flag. Log all scan requests with timestamp, target, scan type, and user confirmation status to a local audit log file.
+                </div>
+
+                <h2>🎯 Step 11 — Scope Limiting</h2>
+                
+                <div class="prompt-box">
+                    Add a scope configuration in settings. Users can define an allowed target list (their own domains/IPs). If a scan target doesn't match the allowed list, FRIDAY should warn: 'This target is not in your authorized scope. Please confirm you have written authorization before proceeding.' Add a bypass confirmation dialog that requires typing 'I CONFIRM' manually.
+                </div>
+            </section>
+
+            <section id="testing">
+                <h1>🧪 Phase 5: Testing & Iteration</h1>
+
+                <h2>✅ Step 12 — Legal Test Targets Only</h2>
+                
+                <p>Use ONLY these targets for testing. Never test against targets you don't own or have explicit written permission to test:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Target</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>scanme.nmap.org</td>
+                            <td>Nmap's official test server</td>
+                        </tr>
+                        <tr>
+                            <td>testphp.vulnweb.com</td>
+                            <td>Acunetix's intentionally vulnerable site</td>
+                        </tr>
+                        <tr>
+                            <td>hack.me</td>
+                            <td>Legal practice platform</td>
+                        </tr>
+                        <tr>
+                            <td>Your own VPS/domain</td>
+                            <td>Best option - you own it</td>
+                        </tr>
+                        <tr>
+                            <td>TryHackMe/HTB lab IPs</td>
+                            <td>CTF environments</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h2>📋 Step 13 — Build & Test Order</h2>
+                
+                <p>Build and test tools in this exact order, one at a time:</p>
+
+                <ol>
+                    <li>DNS Recon → test → fix</li>
+                    <li>WHOIS → test → fix</li>
+                    <li>IP Intel → test → fix</li>
+                    <li>Header Analyzer → test → fix</li>
+                    <li>Port Scanner → test → fix (most complex)</li>
+                    <li>Subdomain Enum → test → fix</li>
+                    <li>OSINT Aggregator → test → fix (requires most API keys)</li>
+                    <li>Voice layer last (nicest feature, least critical)</li>
+                </ol>
+
+                <h2>💡 Claude Code Prompting Tips</h2>
+
+                <p>When working in Claude Code, always structure prompts like this:</p>
+
+                <div class="prompt-box">
+                    Context: I am building FRIDAY, a personal cybersecurity recon assistant for authorized testing only. Current file: `[filename]`. Current error/task: `[paste exact error or task]`. Constraint: must work on Windows, Mac, and Linux. Output: production-ready Python/JS only, no placeholders.
+                </div>
+
+                <div class="warning-box">
+                    <strong>CRITICAL:</strong> Always paste the exact error message back into Claude Code — never describe it vaguely.
+                </div>
+            </section>
+
+            <section id="tech-stack">
+                <h1>🛠️ Final Tech Stack</h1>
+
+                <div class="tech-stack">
+                    <div class="tech-card">
+                        <h4>Frontend UI</h4>
+                        <p>Lovable.dev</p>
+                        <small>Fast, beautiful, no CSS hell</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Frontend Logic</h4>
+                        <p>React + TypeScript</p>
+                        <small>Exported from Lovable</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Backend Server</h4>
+                        <p>FastAPI (Python)</p>
+                        <small>Async, fast, easy WebSockets</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>LLM Brain</h4>
+                        <p>Groq (llama-3.3-70b)</p>
+                        <small>Free, fast, tool calling support</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>DNS Recon</h4>
+                        <p>dnspython</p>
+                        <small>Reliable, cross-platform</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Port Scanning</h4>
+                        <p>python-nmap</p>
+                        <small>Industry standard</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>IP Intel</h4>
+                        <p>Shodan API</p>
+                        <small>Most comprehensive</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>OSINT</h4>
+                        <p>VirusTotal + HIBP</p>
+                        <small>Free tiers sufficient</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Speech-to-Text</h4>
+                        <p>faster-whisper (local)</p>
+                        <small>Free, private, fast</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Text-to-Speech</h4>
+                        <p>edge-tts</p>
+                        <small>Free, human quality</small>
+                    </div>
+                    <div class="tech-card">
+                        <h4>Authorization</h4>
+                        <p>Custom middleware</p>
+                        <small>Non-negotiable</small>
+                    </div>
+                </div>
+            </section>
+
+            <section id="resources">
+                <h1>📚 Additional Resources</h1>
+
+                <h2>⚖️ Legal & Ethical Guidelines</h2>
+                <ul>
+                    <li>Only test targets you own or have explicit written authorization to test</li>
+                    <li>Use intentionally vulnerable practice sites for learning</li>
+                    <li>Always follow responsible disclosure if you find vulnerabilities</li>
+                    <li>Keep detailed logs of all reconnaissance activities</li>
+                    <li>Respect rate limits and don't overload target systems</li>
+                </ul>
+
+                <h2>🎓 Recommended Learning Resources</h2>
+                <ul>
+                    <li><strong>TryHackMe</strong> - Beginner-friendly cybersecurity challenges</li>
+                    <li><strong>HackTheBox</strong> - Advanced penetration testing labs</li>
+                    <li><strong>OWASP Top 10</strong> - Web application security fundamentals</li>
+                    <li><strong>Nmap documentation</strong> - Port scanning techniques</li>
+                    <li><strong>Shodan documentation</strong> - Internet device discovery</li>
+                </ul>
+
+                <h2>🚀 Future Enhancement Ideas</h2>
+                <ul>
+                    <li>Integration with external threat intelligence feeds</li>
+                    <li>Automated vulnerability scanning with Nuclei</li>
+                    <li>Social media OSINT capabilities</li>
+                    <li>Integration with security frameworks (MITRE ATT&CK)</li>
+                    <li>Mobile app for remote reconnaissance</li>
+                    <li>Machine learning for threat classification</li>
+                </ul>
+
+                <h2>🆘 Support & Troubleshooting</h2>
+                <p>If you encounter issues during development:</p>
+                <ol>
+                    <li>Always paste the exact error message into Claude Code</li>
+                    <li>Check API key validity and rate limits</li>
+                    <li>Verify network connectivity to external APIs</li>
+                    <li>Test individual components before integrating</li>
+                    <li>Use legal test targets only</li>
+                </ol>
+
+                <div class="danger-box">
+                    <strong>Remember:</strong> This tool is powerful and must be used responsibly. Always obtain proper authorization before conducting any reconnaissance activities.
+                </div>
+            </section>
+        </div>
+
+        <div class="footer">
+            <p><strong>Happy building! 🚀</strong></p>
+            <p>F.R.I.D.A.Y. - Your AI-Powered Cybersecurity Assistant</p>
+        </div>
+    </div>
+</body>
+</html>

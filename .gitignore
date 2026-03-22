@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+backend/venv/
+backend/*.log
+backend/agent_output.log
+backend/server_stdout.log
+backend/server_stderr.log
+backend/scan_results.json
+
+# Audio recordings
+backend/audio/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Environment
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Installers
+*.exe
+
+# Claude
+.claude/
+
+# LiveKit binary
+livekit/

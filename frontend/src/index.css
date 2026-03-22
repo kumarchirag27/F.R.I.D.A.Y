@@ -1,0 +1,207 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 233 33% 5%;
+    --foreground: 195 50% 94%;
+
+    --card: 233 33% 7%;
+    --card-foreground: 195 50% 94%;
+
+    --popover: 233 33% 7%;
+    --popover-foreground: 195 50% 94%;
+
+    --primary: 191 100% 50%;
+    --primary-foreground: 233 33% 5%;
+
+    --secondary: 191 100% 50%;
+    --secondary-foreground: 233 33% 5%;
+
+    --muted: 233 20% 12%;
+    --muted-foreground: 191 40% 45%;
+
+    --accent: 191 100% 50%;
+    --accent-foreground: 233 33% 5%;
+
+    --destructive: 0 100% 59%;
+    --destructive-foreground: 195 50% 94%;
+
+    --border: 191 100% 50%;
+    --input: 191 100% 50%;
+    --ring: 191 100% 50%;
+
+    --radius: 0px;
+
+    --sidebar-background: 233 33% 5%;
+    --sidebar-foreground: 195 50% 94%;
+    --sidebar-primary: 191 100% 50%;
+    --sidebar-primary-foreground: 233 33% 5%;
+    --sidebar-accent: 191 100% 50%;
+    --sidebar-accent-foreground: 233 33% 5%;
+    --sidebar-border: 191 100% 50%;
+    --sidebar-ring: 191 100% 50%;
+
+    --glow-color: 0 212 255;
+    --danger: 0 100% 59%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border/40;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  /* HUD-themed scrollbars */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 212, 255, 0.03);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.25);
+    border: none;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.45);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.25) rgba(0, 212, 255, 0.03);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .font-body {
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .hud-label {
+    @apply text-[10px] uppercase tracking-[0.2em] text-primary/70 font-display;
+  }
+
+  .chamfer {
+    clip-path: polygon(10px 0%, 100% 0%, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0% 100%, 0% 10px);
+  }
+
+  .chamfer-sm {
+    clip-path: polygon(6px 0%, 100% 0%, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0% 100%, 0% 6px);
+  }
+
+  .chamfer-reverse {
+    clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 10px, 100% 100%, 10px 100%, 0% calc(100% - 10px));
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .scanlines {
+    background: repeating-linear-gradient(
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0.08) 1px,
+      rgba(0,0,0,0) 2px
+    );
+  }
+
+  .glow-border {
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.3), inset 0 0 8px rgba(0, 212, 255, 0.05);
+  }
+
+  .navbar-glass {
+    background: rgba(10, 10, 15, 0.7);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  }
+
+  .glow-text {
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.2);
+  }
+
+  .status-active {
+    @apply w-1 h-1 bg-primary;
+    box-shadow: 0 0 4px rgba(0, 212, 255, 0.8);
+  }
+
+  .status-idle {
+    @apply w-1 h-1 bg-foreground/10;
+  }
+}
+
+/* Animated grid */
+@keyframes grid-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+.bg-grid-animated {
+  background-image:
+    linear-gradient(to right, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 212, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-scroll 8s linear infinite;
+}
+
+/* Pulse ring for core */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 0.2; }
+  100% { transform: scale(0.8); opacity: 0.6; }
+}
+
+@keyframes rotate-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 3s ease-in-out infinite;
+}
+
+.animate-rotate-slow {
+  animation: rotate-slow 20s linear infinite;
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Native select styling for dark HUD theme */
+select {
+  color-scheme: dark;
+}
+select option {
+  background: hsl(233, 33%, 8%);
+  color: hsl(195, 50%, 85%);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+}

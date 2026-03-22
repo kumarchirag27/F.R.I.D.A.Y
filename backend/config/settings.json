@@ -1,0 +1,36 @@
+{
+  "llm": {
+    "rest": {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "api_key": "",
+      "base_url": "",
+      "temperature": 0.7
+    },
+    "voice": {
+      "provider": "ollama",
+      "model": "qwen3:8b",
+      "api_key": "",
+      "base_url": "http://localhost:11434/v1",
+      "temperature": 0.6
+    },
+    "chat": {
+      "provider": "groq",
+      "model": "llama-3.1-8b-instant",
+      "api_key": "",
+      "base_url": "",
+      "temperature": 0.6
+    }
+  },
+  "api_keys": {
+    "GROQ_API_KEY": "",
+    "GOOGLE_API_KEY": "",
+    "OPENAI_API_KEY": "",
+    "ANTHROPIC_API_KEY": "",
+    "SHODAN_API_KEY": "",
+    "VIRUSTOTAL_API_KEY": "",
+    "SECURITYTRAILS_API_KEY": "",
+    "HIBP_API_KEY": ""
+  },
+  "mcp_servers": []
+}
