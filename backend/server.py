@@ -243,6 +243,22 @@ async def get_status():
 async def get_history():
     return {"history": SCAN_HISTORY[-50:]}
 
+@app.delete("/api/history/{index}")
+async def delete_history_item(index: int):
+    """Delete a scan from history by index."""
+    if 0 <= index < len(SCAN_HISTORY):
+        removed = SCAN_HISTORY.pop(index)
+        save_scan_history()
+        return {"status": "ok", "removed": removed}
+    raise HTTPException(status_code=404, detail="History item not found")
+
+@app.delete("/api/history")
+async def clear_history():
+    """Clear all scan history."""
+    SCAN_HISTORY.clear()
+    save_scan_history()
+    return {"status": "ok"}
+
 @app.get("/api/auditlog")
 async def get_auditlog(lines: int = 100):
     try:
@@ -307,6 +323,46 @@ async def get_network():
         "latency_ms": latency_ms,
         "uplink": latency_ms is not None,
     }
+
+class AnalysisRequest(BaseModel):
+    target: str
+    scan_data: dict
+
+@app.post("/api/intel-analysis")
+async def generate_intel_analysis(req: AnalysisRequest):
+    """Generate a detailed written intelligence analysis from scan results using LLM."""
+    prompt = f"""You are a senior cybersecurity analyst writing a professional reconnaissance assessment report.
+
+Analyze these scan results for {req.target} and write a detailed 2-paragraph intelligence assessment. Cover:
+- Infrastructure (IP, hosting, WAF/CDN, DNS configuration, nameservers)
+- Security posture (open ports, security headers, email protections like SPF/DKIM/DMARC)
+- OSINT findings (VirusTotal reputation, subdomains discovered, Shodan intelligence)
+- Risk assessment and actionable recommendations
+
+Write in professional third-person analytical style. Be specific — reference actual IPs, registrars, subdomain counts, and findings from the data. No bullet points, no markdown, just flowing prose paragraphs like a real pentest report.
+
+Scan data:
+{json.dumps(req.scan_data, default=str)[:4000]}"""
+
+    try:
+        response = await asyncio.to_thread(
+            lambda: brain.client.chat.completions.create(
+                model=brain.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=800,
+            )
+        )
+        return {"analysis": response.choices[0].message.content}
+    except Exception as e:
+        return {"analysis": f"Analysis generation failed: {str(e)[:200]}"}
+
+
+@app.get("/api/cyber-news")
+async def get_cyber_news_endpoint(count: int = 10):
+    """Get latest cybersecurity news from RSS feeds."""
+    from tools.cyber_news import get_cyber_news
+    return await asyncio.to_thread(get_cyber_news, count)
+
 
 @app.get("/api/health")
 async def get_api_health():
@@ -412,39 +468,84 @@ async def friday_endpoint(req: FridayRequest):
         
     logging.info(f"Authorized scan initiated: Target={req.target}, Mode={req.mode}, Query='{req.query}'")
     
-    # Record in scan history (persisted)
-    SCAN_HISTORY.append({
+    # Record in scan history (persisted) — result added after completion
+    scan_entry = {
         "target": req.target,
         "mode": req.mode,
         "time": datetime.utcnow().strftime("%H:%M:%S"),
-        "date": datetime.utcnow().isoformat()
-    })
+        "date": datetime.utcnow().isoformat(),
+        "status": "running",
+        "summary": "",
+    }
+    SCAN_HISTORY.append(scan_entry)
+    scan_idx = len(SCAN_HISTORY) - 1
     if len(SCAN_HISTORY) > 200:
         SCAN_HISTORY.pop(0)
-    save_scan_history()
+        scan_idx -= 1
     
     # Offload brain processing to thread pool to not block async endpoints
     try:
-        # Define a synchronous callback that uses asyncio.run_coroutine_threadsafe 
-        # or just calls the async function. Since we are in to_thread, we can use 
-        # asyncio.run to send the message back if we want, or just let brain.py return.
-        # Another approach: we'll pass an async loop queue, but simpler: 
-        # Let's define a callback that schedules the send_message on the main loop.
         loop = asyncio.get_running_loop()
         def stream_callback(msg: str, msg_type: str = "info"):
             asyncio.run_coroutine_threadsafe(manager.send_message(msg, msg_type), loop)
 
-        response_data = await asyncio.to_thread(brain.process_query, req.query, req.target, stream_callback)
-        
+        # FULL OSINT mode: bypass LLM tool selection, run ALL tools directly
+        if req.mode and req.mode.upper() == "FULL OSINT" and req.target:
+            response_data = await asyncio.to_thread(brain.run_full_recon, req.target, stream_callback)
+        else:
+            response_data = await asyncio.to_thread(brain.process_query, req.query, req.target, stream_callback)
+
         # Signal scan done to progress widget
         await manager.send_message("SCAN_COMPLETE", "done")
 
         if isinstance(response_data, dict) and "error" in response_data:
+            if 0 <= scan_idx < len(SCAN_HISTORY):
+                SCAN_HISTORY[scan_idx]["status"] = "error"
+                SCAN_HISTORY[scan_idx]["summary"] = str(response_data["error"])[:200]
+                save_scan_history()
             return {"status": "error", "message": response_data["error"]}
-            
+
+        # brain.py now returns {message, result} dict when tools were called
+        if isinstance(response_data, dict) and "result" in response_data:
+            message_text = response_data["message"]
+            tool_results = response_data["result"]
+
+            if 0 <= scan_idx < len(SCAN_HISTORY):
+                SCAN_HISTORY[scan_idx]["status"] = "done"
+                SCAN_HISTORY[scan_idx]["summary"] = str(message_text)[:300]
+                save_scan_history()
+
+            # Persist to intel results store
+            intel_entry = {
+                "id": len(INTEL_RESULTS),
+                "target": req.target,
+                "timestamp": datetime.utcnow().isoformat(),
+                "result": tool_results,
+            }
+            INTEL_RESULTS.append(intel_entry)
+            if len(INTEL_RESULTS) > 50:
+                INTEL_RESULTS.pop(0)
+            _save_intel_results()
+
+            return {
+                "status": "success",
+                "message": message_text,
+                "result": tool_results,
+            }
+
+        # No tools called — just text response
+        if 0 <= scan_idx < len(SCAN_HISTORY):
+            SCAN_HISTORY[scan_idx]["status"] = "done"
+            SCAN_HISTORY[scan_idx]["summary"] = str(response_data)[:300] if response_data else ""
+            save_scan_history()
+
         return {"status": "success", "message": response_data}
     except Exception as e:
         await manager.send_message("SCAN_ERROR", "done")
+        if 0 <= scan_idx < len(SCAN_HISTORY):
+            SCAN_HISTORY[scan_idx]["status"] = "error"
+            SCAN_HISTORY[scan_idx]["summary"] = str(e)[:200]
+            save_scan_history()
         return {"status": "error", "message": str(e)}
 
 @app.websocket("/ws")
@@ -453,10 +554,95 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            # We can handle inputs from websocket if needed
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print("Client disconnected")
+
+
+# ── Scan Results Store (persistent) ───────────────────────────────────
+
+INTEL_RESULTS_FILE = os.path.join(os.path.dirname(__file__), "intel_results.json")
+
+def _load_intel_results() -> list:
+    if os.path.exists(INTEL_RESULTS_FILE):
+        try:
+            with open(INTEL_RESULTS_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def _save_intel_results():
+    with open(INTEL_RESULTS_FILE, "w") as f:
+        json.dump(INTEL_RESULTS[-50:], f, indent=2, default=str)
+
+INTEL_RESULTS: list = _load_intel_results()
+
+
+class BroadcastRequest(BaseModel):
+    message: str
+    type: str = "info"
+
+class ScanResultRequest(BaseModel):
+    target: str
+    result: dict
+
+@app.post("/api/ws-broadcast")
+async def ws_broadcast(req: BroadcastRequest):
+    """Allow voice agent to push progress messages to the frontend via WebSocket."""
+    await manager.send_message(req.message, req.type)
+    return {"status": "ok"}
+
+@app.post("/api/scan-result")
+async def store_scan_result(req: ScanResultRequest):
+    """Store scan results persistently. Called by voice agent and RECON tab."""
+    entry = {
+        "id": len(INTEL_RESULTS),
+        "target": req.target,
+        "timestamp": datetime.utcnow().isoformat(),
+        "result": req.result,
+    }
+    INTEL_RESULTS.append(entry)
+    if len(INTEL_RESULTS) > 50:
+        INTEL_RESULTS.pop(0)
+    _save_intel_results()
+    await manager.send_message(f"[SYS] INTEL REPORT READY FOR {req.target.upper()}", "success")
+    return {"status": "ok", "id": entry["id"]}
+
+@app.get("/api/scan-result/latest")
+async def get_latest_scan_result():
+    """Get the most recent scan result."""
+    return INTEL_RESULTS[-1] if INTEL_RESULTS else {}
+
+@app.get("/api/scan-results")
+async def get_all_scan_results():
+    """Get all stored scan results (for INTEL tab browsing)."""
+    # Return summaries (without full result data) for listing
+    summaries = []
+    for r in reversed(INTEL_RESULTS):
+        summaries.append({
+            "id": r.get("id", 0),
+            "target": r["target"],
+            "timestamp": r["timestamp"],
+            "tool_count": len(r.get("result", {})),
+        })
+    return {"results": summaries}
+
+@app.get("/api/scan-results/{result_id}")
+async def get_scan_result_by_id(result_id: int):
+    """Get a specific scan result by ID."""
+    for r in INTEL_RESULTS:
+        if r.get("id") == result_id:
+            return r
+    raise HTTPException(status_code=404, detail="Scan result not found")
+
+@app.delete("/api/scan-results/{result_id}")
+async def delete_scan_result(result_id: int):
+    """Delete a specific scan result."""
+    global INTEL_RESULTS
+    INTEL_RESULTS = [r for r in INTEL_RESULTS if r.get("id") != result_id]
+    _save_intel_results()
+    return {"status": "ok"}
 
 @app.post("/api/voice")
 async def voice_endpoint(file: UploadFile = File(...), wake_word: str = Form("false")):

@@ -61,7 +61,6 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("DASHBOARD");
   const [input, setInput] = useState("");
   const [blobState, setBlobState] = useState<BlobState>("idle");
-  const [reportOpen, setReportOpen] = useState(false);
   const [auditLogOpen, setAuditLogOpen] = useState(false);
   const [voiceState, setVoiceState] = useState<"passive" | "listening" | "processing" | "responding">("passive");
 
@@ -149,6 +148,87 @@ const Index = () => {
     else setBlobState("idle");
   };
 
+  /* ── Render the center+right content based on active tab ── */
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "SETTINGS":
+        return (
+          <div className="lg:col-span-2 flex flex-col min-h-0 overflow-y-auto max-h-[calc(100svh-140px)] pr-1">
+            <SettingsPanel />
+          </div>
+        );
+
+      case "RECON":
+        return (
+          <div className="lg:col-span-2 flex flex-col min-h-0 overflow-y-auto max-h-[calc(100svh-140px)] pr-1">
+            <motion.div
+              key="recon"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.12 }}
+            >
+              <ReconPanel />
+            </motion.div>
+          </div>
+        );
+
+      case "INTEL":
+        return (
+          <div className="lg:col-span-2 flex flex-col min-h-0 overflow-y-auto max-h-[calc(100svh-140px)] pr-1">
+            <motion.div
+              key="intel"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.12 }}
+            >
+              <IntelReportPanel isOpen={true} onClose={() => setActiveTab("DASHBOARD")} inline />
+            </motion.div>
+          </div>
+        );
+
+      default:
+        // DASHBOARD
+        return (
+          <>
+            {/* Center column — Blob + Voice + Command */}
+            <div className="flex flex-col gap-3 min-h-0">
+              <div className="flex-1 border border-primary/20 bg-primary/[0.02] chamfer relative min-h-[280px]">
+                <CoreBlob state={blobState} onToggleListen={handleToggle} />
+              </div>
+              <VoiceInterface onStateChange={handleVoiceStateChange} />
+
+              {/* Bottom command bar */}
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 bg-primary/5 border border-primary/30 glow-border chamfer">
+                  <div className="flex items-center">
+                    <span className="text-primary/40 font-display text-xs pl-3 pr-1 tracking-widest">&gt;</span>
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="AWAITING COMMAND..."
+                      className="w-full bg-transparent border-none py-2.5 px-2 text-foreground placeholder-primary/25 focus:outline-none font-display uppercase tracking-widest text-xs"
+                    />
+                    <span className="text-primary animate-blink font-display text-sm px-2">_</span>
+                    <div className="flex items-center gap-1.5 pr-3 shrink-0">
+                      {[true, true, true, false].map((active, i) => (
+                        <StatusDot key={i} active={active} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column — Terminal */}
+            <div className="flex flex-col min-h-[400px] max-h-[calc(100svh-140px)]">
+              <TerminalPanel />
+            </div>
+          </>
+        );
+    }
+  };
+
   return (
     <div className="min-h-svh bg-background text-foreground font-body relative overflow-hidden">
       {/* Background layers */}
@@ -157,13 +237,13 @@ const Index = () => {
 
       {/* Main content */}
       <div className="relative z-10 min-h-svh flex flex-col p-3 md:p-6 gap-3">
-        
+
         <NavBar voiceState={voiceState} onAuditLog={() => setAuditLogOpen(true)} activeTab={activeTab} onTabChange={setActiveTab} />
 
         {/* Dashboard grid — 3 columns */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-[240px_1fr_300px] gap-3 min-h-0">
-          
-          {/* Left column — Telemetry + Status Widgets */}
+
+          {/* Left column — Telemetry + Status Widgets (always visible) */}
           <div className="flex flex-col gap-3 overflow-y-auto max-h-[calc(100svh-140px)] pr-1">
             <ModuleCard title="SYSTEM_METRICS" delay={0.05}>
               <div className="space-y-1">
@@ -192,64 +272,10 @@ const Index = () => {
             <StatusWidgets />
           </div>
 
-          {activeTab === "SETTINGS" ? (
-            /* Settings panel — spans center + right columns */
-            <div className="lg:col-span-2 flex flex-col min-h-0 overflow-y-auto max-h-[calc(100svh-140px)] pr-1">
-              <SettingsPanel />
-            </div>
-          ) : (
-            <>
-              {/* Center column — Blob + Recon + Command */}
-              <div className="flex flex-col gap-3 min-h-0">
-                <div className="flex-1 border border-primary/20 bg-primary/[0.02] chamfer relative min-h-[280px]">
-                  <CoreBlob state={blobState} onToggleListen={handleToggle} />
-                </div>
-                <VoiceInterface onStateChange={handleVoiceStateChange} />
-                <ReconPanel />
-
-                {/* Bottom command bar */}
-                <div className="flex gap-2 items-center">
-                  {/* Command input */}
-                  <div className="flex-1 bg-primary/5 border border-primary/30 glow-border chamfer">
-                    <div className="flex items-center">
-                      <span className="text-primary/40 font-display text-xs pl-3 pr-1 tracking-widest">&gt;</span>
-                      <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="AWAITING COMMAND..."
-                        className="w-full bg-transparent border-none py-2.5 px-2 text-foreground placeholder-primary/25 focus:outline-none font-display uppercase tracking-widest text-xs"
-                      />
-                      <span className="text-primary animate-blink font-display text-sm px-2">_</span>
-                      <div className="flex items-center gap-1.5 pr-3 shrink-0">
-                        {[true, true, true, false].map((active, i) => (
-                          <StatusDot key={i} active={active} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Intel report button */}
-                  <button
-                    onClick={() => setReportOpen(true)}
-                    className="chamfer-sm font-display text-[9px] uppercase tracking-[0.15em] px-4 py-2.5 border border-primary/30 bg-primary/5 text-primary/50 glow-border hover:bg-primary/15 hover:text-primary transition-none whitespace-nowrap shrink-0"
-                  >
-                    ◆ INTEL REPORT
-                  </button>
-                </div>
-              </div>
-
-              {/* Right column — Terminal */}
-              <div className="flex flex-col min-h-[400px] max-h-[calc(100svh-140px)]">
-                <TerminalPanel />
-              </div>
-            </>
-          )}
+          {/* Center + Right columns — tab-dependent content */}
+          {renderTabContent()}
         </div>
       </div>
-
-      {/* Intelligence Report slide-in panel */}
-      <IntelReportPanel isOpen={reportOpen} onClose={() => setReportOpen(false)} />
 
       {/* Audit Log Viewer */}
       <AuditLogViewer isOpen={auditLogOpen} onClose={() => setAuditLogOpen(false)} />

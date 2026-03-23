@@ -16,9 +16,14 @@ backend/audio/
 frontend/node_modules/
 frontend/dist/
 
-# Environment
+# Environment (NEVER commit real keys)
 .env
-*.env
+backend/.env
+!backend/.env.example
+
+# Scan data (generated at runtime)
+backend/intel_results.json
+backend/scan_results.json
 
 # IDE
 .vscode/
@@ -37,3 +42,9 @@ nul
 
 # LiveKit binary
 livekit/
+
+# Temp build files
+create_post.js
+node_modules/
+package-lock.json
+FRIDAY_LinkedIn_Post.docx

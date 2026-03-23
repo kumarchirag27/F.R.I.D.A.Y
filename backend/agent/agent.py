@@ -20,7 +20,7 @@ if _backend_dir not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(os.path.join(_backend_dir, ".env"))
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RoomInputOptions, cli
 from livekit.agents.tts import StreamAdapter
 from livekit.plugins import groq, google, silero
 
@@ -33,8 +33,17 @@ logger = logging.getLogger("friday.agent")
 
 # ── F.R.I.D.A.Y. System Prompt (kept short to minimize token usage) ──
 SYSTEM_PROMPT = """You are F.R.I.D.A.Y., Tony Stark's tactical AI. Irish lilt, sharp and concise. Call the user 'Boss'.
-You do cybersecurity recon. Confirm targets before scanning. Summarize results briefly.
-Rules: 1-3 sentences max. No markdown or formatting. Conversational and instant."""
+You do cybersecurity recon. Confirm targets before scanning.
+
+TOOL RULES:
+- When Boss says "run recon", "scan", or any general recon request, use run_full_recon.
+- Only use individual tools when Boss asks for a SPECIFIC scan type.
+- After scanning, give a 2-3 sentence tactical summary. Say "Full report is on the INTEL tab, Boss."
+
+CRITICAL SPEECH RULES:
+- NEVER read out function calls, JSON, code, or technical syntax. Only speak natural conversational English.
+- NEVER say things like "function equals" or "domain colon" or read curly braces.
+- Keep all responses to 1-3 short spoken sentences. No markdown, no formatting, no code."""
 
 
 # ── Create AgentServer with LiveKit credentials ──
@@ -109,8 +118,8 @@ async def entrypoint(ctx: JobContext):
     raw_tts = EdgeTTS(voice="en-IE-EmilyNeural", rate="+10%")
     streamed_tts = StreamAdapter(tts=raw_tts)
 
-    # ── VAD: Silero (segments audio for Groq Whisper) ──
-    vad = silero.VAD.load()
+    # ── VAD: Silero — lower threshold for better sensitivity ──
+    vad = silero.VAD.load(min_speech_duration=0.1, min_silence_duration=0.3, activation_threshold=0.3)
 
     # ── Determine if tools are supported by this LLM provider/model ──
     # Most cloud providers support tool-calling. For Ollama, only certain models do.
@@ -136,12 +145,16 @@ async def entrypoint(ctx: JobContext):
         min_endpointing_delay=0.5,
     )
 
-    # ── Start session ──
+    # ── Start session — keep alive even if browser disconnects ──
     session = AgentSession()
-    await session.start(agent=agent, room=ctx.room)
+    await session.start(
+        agent=agent,
+        room=ctx.room,
+        room_input_options=RoomInputOptions(close_on_disconnect=False),
+    )
 
     # Greet the user
-    await session.say("F.R.I.D.A.Y. online. Awaiting your command, Boss.")
+    await session.say("FRIDAY online. Awaiting your command, Boss.")
     logger.info("F.R.I.D.A.Y. voice agent ready - awaiting commands")
 
 

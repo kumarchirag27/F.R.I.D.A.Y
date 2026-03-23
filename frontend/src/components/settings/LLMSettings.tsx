@@ -602,21 +602,32 @@ const LLMSettings = () => {
   const [loaded, setLoaded] = useState(false);
   const [expandedSlot, setExpandedSlot] = useState<SlotKey | null>(null);
 
-  // Load settings on mount — always fetch from backend (no hardcoded defaults)
+  // Load settings on mount with retry (backend may still be starting)
   useEffect(() => {
-    fetch(`${API}/api/settings`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.llm) {
-          setSlots({
-            rest: { ...EMPTY_SLOT, ...data.llm.rest },
-            voice: { ...EMPTY_SLOT, ...data.llm.voice },
-            chat: { ...EMPTY_SLOT, ...data.llm.chat },
-          });
-        }
-        setLoaded(true);
-      })
-      .catch(() => setLoaded(true));
+    let retries = 0;
+    const fetchSettings = () => {
+      fetch(`${API}/api/settings`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.llm) {
+            setSlots({
+              rest: { ...EMPTY_SLOT, ...data.llm.rest },
+              voice: { ...EMPTY_SLOT, ...data.llm.voice },
+              chat: { ...EMPTY_SLOT, ...data.llm.chat },
+            });
+          }
+          setLoaded(true);
+        })
+        .catch(() => {
+          retries++;
+          if (retries < 5) {
+            setTimeout(fetchSettings, 2000);
+          } else {
+            setLoaded(true);
+          }
+        });
+    };
+    fetchSettings();
   }, []);
 
   const handleUpdate = (slot: SlotKey, data: Partial<SlotConfig>) => {

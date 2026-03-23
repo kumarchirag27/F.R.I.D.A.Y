@@ -53,6 +53,72 @@ class FridayBrain:
         self.model = model
         self.temperature = temperature
 
+    def run_full_recon(self, target: str, stream_callback=None):
+        """Run ALL recon tools directly (no LLM tool selection), then summarize."""
+        import socket
+
+        tool_results = {}
+
+        def _run(name, label, fn):
+            if stream_callback:
+                stream_callback(f"[SYS] EXECUTING MODULE: {label}...", "info")
+            try:
+                result = fn()
+                tool_results[name] = result
+                if stream_callback:
+                    stream_callback(f"[SYS] MODULE {label} COMPLETED.", "success")
+            except Exception as e:
+                tool_results[name] = {"error": str(e)[:200]}
+                if stream_callback:
+                    stream_callback(f"[SYS] MODULE {label} FAILED: {str(e)[:100]}", "error")
+
+        # 1. DNS Recon
+        _run("run_dns_recon", "DNS RECON", lambda: run_dns_recon(domain=target))
+
+        # 2. WHOIS Lookup
+        _run("run_whois_lookup", "WHOIS LOOKUP", lambda: run_whois_lookup(domain=target))
+
+        # 3. Subdomain Enumeration (SecurityTrails + brute force)
+        _run("run_subdomain_enum", "SUBDOMAIN ENUM", lambda: run_subdomain_enum(domain=target))
+
+        # 4. Header Analysis
+        _run("analyze_headers", "HEADER ANALYSIS", lambda: analyze_headers(url=f"https://{target}"))
+
+        # 5. OSINT Aggregator (VirusTotal)
+        _run("run_osint_aggregator", "OSINT / VIRUSTOTAL", lambda: run_osint_aggregator(target=target, is_ip=False))
+
+        # 6. Resolve IP and run IP Recon (Shodan) + Port Scan
+        try:
+            ip = socket.gethostbyname(target)
+            if stream_callback:
+                stream_callback(f"[SYS] RESOLVED {target} -> {ip}", "info")
+
+            _run("run_ip_recon", "IP RECON / SHODAN", lambda: run_ip_recon(ip=ip))
+            _run("scan_ports", "PORT SCAN", lambda: scan_ports(target_ip=ip, port_range="1-100", scan_type="basic"))
+        except Exception:
+            if stream_callback:
+                stream_callback(f"[SYS] COULD NOT RESOLVE IP — SKIPPING IP RECON & PORT SCAN", "error")
+
+        # Summarize with LLM
+        if stream_callback:
+            stream_callback("[SYS] ASSIMILATING INTELLIGENCE...", "info")
+
+        try:
+            summary_resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Summarize these full recon results for {target} in 3-4 sentences. Hit the key findings from each tool. Data:\n{json.dumps(tool_results, default=str)[:6000]}"},
+                ],
+                max_tokens=512,
+            )
+            token_tracker.record_from_response("rest", summary_resp)
+            message = summary_resp.choices[0].message.content
+        except Exception as e:
+            message = f"Full recon completed on {target} with {len(tool_results)} tools. Check the INTEL tab for detailed results."
+
+        return {"message": message, "result": tool_results}
+
     def process_query(self, user_query: str, target: Optional[str] = None, stream_callback=None, on_scan_callback=None):
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT}
@@ -201,13 +267,13 @@ class FridayBrain:
             pass  # MCP unavailable — continue with built-in tools only
 
         try:
-            # First LLM call
+            # First LLM call — low max_tokens since this just picks tools
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
-                max_tokens=4096
+                max_tokens=1024
             )
             token_tracker.record_from_response("rest", response)
 
@@ -216,7 +282,10 @@ class FridayBrain:
             
             if tool_calls:
                 messages.append(response_message)
-                
+
+                # Collect raw tool results for the frontend report
+                tool_results = {}
+
                 # Execute tools matching the tool calls
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
@@ -262,6 +331,9 @@ class FridayBrain:
                     else:
                         function_response = {"error": f"Unknown function: {function_name}"}
 
+                    # Store raw result for report
+                    tool_results[function_name] = function_response
+
                     # Report scan to listener
                     if on_scan_callback and isinstance(function_response, dict) and "error" not in function_response:
                         scan_target = function_args.get("domain") or function_args.get("ip") or function_args.get("target_ip") or function_args.get("url") or function_args.get("target")
@@ -278,19 +350,24 @@ class FridayBrain:
                             "content": json.dumps(function_response),
                         }
                     )
-                
+
                 if stream_callback:
                     stream_callback(f"[SYS] ASSIMILATING INTELLIGENCE...", "info")
-                
-                # Second LLM call with tool results
+
+                # Second LLM call — brief summary (detailed data shown in UI)
                 second_response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    max_tokens=4096
+                    max_tokens=512
                 )
                 token_tracker.record_from_response("rest", second_response)
-                return second_response.choices[0].message.content
-                
+
+                # Return both summary and raw results
+                return {
+                    "message": second_response.choices[0].message.content,
+                    "result": tool_results,
+                }
+
             return response_message.content
         except Exception as e:
             return {"error": str(e)}

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, Radio, Wifi, WifiOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Mic, Radio, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import {
   LiveKitRoom,
   useVoiceAssistant,
@@ -161,6 +161,22 @@ const VoiceContent = ({ onStateChange }: VoiceInterfaceProps) => {
   const [transcriptSegments, setTranscriptSegments] = useState<string[]>([]);
   const prevTranscriptCountRef = useRef(0);
 
+  // Persistent conversation log — stored in localStorage, survives page reloads
+  const [conversationLog, setConversationLog] = useState<
+    { role: "friday"; text: string; timestamp: number }[]
+  >(() => {
+    try {
+      const saved = localStorage.getItem("friday_transcript");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Save to localStorage whenever log changes
+  useEffect(() => {
+    try { localStorage.setItem("friday_transcript", JSON.stringify(conversationLog)); } catch {}
+  }, [conversationLog]);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (agentTranscriptions && agentTranscriptions.length > 0) {
       const latest = agentTranscriptions[agentTranscriptions.length - 1];
@@ -181,13 +197,31 @@ const VoiceContent = ({ onStateChange }: VoiceInterfaceProps) => {
     }
   }, [agentTranscriptions]);
 
-  // Clear accumulated transcript when agent starts a new response
+  // When agent finishes speaking, save full response to conversation log
+  const prevPhaseRef = useRef<Phase>("connecting");
   useEffect(() => {
+    // Transition FROM responding TO something else = speech ended
+    if (prevPhaseRef.current === "responding" && phase !== "responding") {
+      const fullText = transcriptSegments.join(" ");
+      if (fullText.trim()) {
+        setConversationLog((prev) => [
+          ...prev,
+          { role: "friday", text: fullText.trim(), timestamp: Date.now() },
+        ]);
+      }
+    }
+    // Clear segments when agent starts processing a new question
     if (phase === "processing") {
       setTranscriptSegments([]);
       prevTranscriptCountRef.current = agentTranscriptions?.length ?? 0;
     }
+    prevPhaseRef.current = phase;
   }, [phase]);
+
+  // Auto-scroll conversation log
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversationLog, transcriptSegments]);
 
   // Build the full response text from all segments
   const fullResponseText = transcriptSegments.join(" ") || lastTranscript;
@@ -322,73 +356,64 @@ const VoiceContent = ({ onStateChange }: VoiceInterfaceProps) => {
         )}
       </AnimatePresence>
 
-      {/* ── Speaking / Responding (with 6s linger after speech ends) ── */}
-      <AnimatePresence>
-        {displayPhase === "responding" && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: isFadingOut ? 0.5 : 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: isFadingOut ? 2 : 0.3 }}
-            className="w-full"
-          >
-            <div
-              className={`border p-3 chamfer-sm transition-all duration-1000 ${
-                isFadingOut
-                  ? "border-primary/15 bg-primary/[0.03]"
-                  : "border-primary/30 bg-primary/[0.08] glow-border"
-              }`}
-            >
-              <div className="hud-label mb-1.5 flex items-center gap-2">
-                <div
-                  className={`w-1.5 h-1.5 transition-colors duration-1000 ${
-                    isFadingOut ? "bg-primary/40" : "bg-primary"
-                  }`}
-                  style={{
-                    boxShadow: isFadingOut
-                      ? "0 0 3px hsl(191 100% 50% / 0.3)"
-                      : "0 0 6px hsl(191 100% 50% / 0.8)",
-                  }}
-                />
-                {isFadingOut ? "F.R.I.D.A.Y_LAST_RESPONSE" : "F.R.I.D.A.Y_RESPONSE"}
-              </div>
-              {fullResponseText && (
-                <p
-                  className={`font-body text-xs mb-2 leading-relaxed transition-colors duration-1000 ${
-                    isFadingOut ? "text-foreground/25" : "text-foreground/40"
-                  }`}
-                >
-                  {isFadingOut ? fullResponseText : <TypingText text={lastTranscript} speed={15} />}
-                </p>
-              )}
-              {/* Audio wave bars — only animate while actively speaking */}
-              {!isFadingOut && (
-                <div className="flex gap-0.5 h-4 items-center justify-center mt-1">
-                  {[...Array(16)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="w-1 bg-primary/60 rounded-sm"
-                      animate={{ height: ["2px", `${6 + Math.random() * 10}px`, "2px"] }}
-                      transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.04 }}
-                    />
-                  ))}
-                </div>
-              )}
-              {/* Fade-out progress bar */}
-              {isFadingOut && (
-                <div className="h-0.5 bg-primary/5 mt-2 overflow-hidden chamfer-sm">
-                  <motion.div
-                    className="h-full bg-primary/20"
-                    initial={{ width: "100%" }}
-                    animate={{ width: "0%" }}
-                    transition={{ duration: RESPONSE_LINGER_MS / 1000, ease: "linear" }}
-                  />
-                </div>
-              )}
+      {/* ── Persistent Conversation Log + Live Response ── */}
+      {(conversationLog.length > 0 || displayPhase === "responding") && (
+        <div className="w-full border border-primary/20 bg-primary/[0.02] chamfer-sm overflow-hidden">
+          <div className="hud-label px-3 pt-2 pb-1 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-1.5 h-1.5 bg-primary"
+                style={{ boxShadow: "0 0 4px hsl(191 100% 50% / 0.6)" }}
+              />
+              F.R.I.D.A.Y_TRANSCRIPT
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {conversationLog.length > 0 && (
+              <button
+                onClick={() => setConversationLog([])}
+                className="text-[7px] tracking-widest text-red-400/30 hover:text-red-400 uppercase transition-none"
+              >
+                CLEAR
+              </button>
+            )}
+          </div>
+
+          {/* Scrollable transcript area */}
+          <div className="max-h-[160px] overflow-y-auto px-3 pb-2 scroll-smooth" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,212,255,0.2) transparent" }}>
+            {/* Past responses */}
+            {conversationLog.map((entry, i) => (
+              <div key={i} className="py-1.5 border-b border-primary/5 last:border-0">
+                <p className="font-body text-xs text-foreground/35 leading-relaxed">
+                  {entry.text}
+                </p>
+              </div>
+            ))}
+
+            {/* Live response currently being spoken */}
+            {displayPhase === "responding" && fullResponseText && (
+              <div className="py-1.5">
+                <p className="font-body text-xs text-foreground/50 leading-relaxed">
+                  <TypingText text={lastTranscript} speed={15} />
+                </p>
+                {/* Audio wave bars */}
+                {!isFadingOut && (
+                  <div className="flex gap-0.5 h-3 items-center mt-1">
+                    {[...Array(12)].map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="w-1 bg-primary/50 rounded-sm"
+                        animate={{ height: ["2px", `${5 + Math.random() * 8}px`, "2px"] }}
+                        transition={{ duration: 0.4 + Math.random() * 0.3, repeat: Infinity, delay: i * 0.04 }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div ref={logEndRef} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -400,47 +425,55 @@ const VoiceInterface = ({ onStateChange }: VoiceInterfaceProps) => {
   const [token, setToken] = useState<string>("");
   const [lkUrl, setLkUrl] = useState<string>("");
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [connectKey, setConnectKey] = useState(0); // increment to force reconnect
 
-  // Fetch LiveKit token from FastAPI backend on mount
+  const fetchToken = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/livekit-token`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setToken(data.token);
+      setLkUrl(data.url);
+      setFetchError(null);
+      console.log("[FRIDAY] LiveKit token acquired, connecting to:", data.url);
+    } catch (e: any) {
+      console.error("[FRIDAY] Failed to fetch LiveKit token:", e);
+      setFetchError(e.message);
+      setTimeout(fetchToken, 3000);
+    }
+  };
+
+  // Fetch token on mount and whenever connectKey changes (reconnect)
   useEffect(() => {
-    let cancelled = false;
-    const fetchToken = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/livekit-token`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) {
-          setToken(data.token);
-          setLkUrl(data.url);
-          console.log("[FRIDAY] LiveKit token acquired, connecting to:", data.url);
-        }
-      } catch (e: any) {
-        console.error("[FRIDAY] Failed to fetch LiveKit token:", e);
-        if (!cancelled) {
-          setFetchError(e.message);
-          // Retry in 3 seconds
-          setTimeout(fetchToken, 3000);
-        }
-      }
-    };
+    setToken("");
+    setLkUrl("");
     fetchToken();
-    return () => { cancelled = true; };
-  }, []);
+  }, [connectKey]);
+
+  // Reconnect handler — resets everything and gets a fresh token
+  const handleReconnect = () => {
+    setToken("");
+    setLkUrl("");
+    setFetchError(null);
+    setConnectKey((k) => k + 1);
+  };
 
   // Show error if token fetch fails
   if (fetchError && !token) {
     return (
       <div className="flex flex-col items-center gap-2 w-full">
         <div className="border border-red-500/40 bg-red-500/10 p-2.5 chamfer-sm w-full">
-          <p className="font-body text-xs text-red-300/80 mb-2">
-            Cannot connect to voice system: {fetchError}
-          </p>
-          <button
-            onClick={() => { setFetchError(null); window.location.reload(); }}
-            className="flex items-center gap-2 px-3 py-1.5 border border-primary/40 bg-primary/10 chamfer-sm font-display text-[10px] tracking-[0.15em] text-primary uppercase hover:bg-primary/20"
-          >
-            <Mic className="w-3 h-3" /> RETRY
-          </button>
+          <div className="flex items-center justify-between">
+            <p className="font-body text-xs text-red-300/80">
+              Voice system disconnected: {fetchError}
+            </p>
+            <button
+              onClick={handleReconnect}
+              className="flex items-center gap-2 px-3 py-1.5 border border-primary/40 bg-primary/10 chamfer-sm font-display text-[10px] tracking-[0.15em] text-primary uppercase hover:bg-primary/20 shrink-0 ml-3"
+            >
+              <RefreshCw className="w-3 h-3" /> RECONNECT
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -476,17 +509,32 @@ const VoiceInterface = ({ onStateChange }: VoiceInterfaceProps) => {
 
   return (
     <LiveKitRoom
+      key={connectKey}
       serverUrl={lkUrl}
       token={token}
       connect={true}
       audio={true}
       video={false}
       style={{ display: "contents" }}
+      onDisconnected={() => {
+        console.warn("[FRIDAY] LiveKit room disconnected");
+      }}
       onError={(err) => {
         console.error("[FRIDAY] LiveKit room error:", err);
       }}
     >
       <VoiceContent onStateChange={onStateChange} />
+      {/* Reconnect button — always visible */}
+      <div className="w-full flex justify-end px-1">
+        <button
+          onClick={handleReconnect}
+          className="flex items-center gap-1.5 px-2.5 py-1 font-display text-[8px] tracking-widest text-primary/30 hover:text-primary uppercase transition-none"
+          title="Reset voice connection"
+        >
+          <RefreshCw className="w-2.5 h-2.5" />
+          RESET VOICE
+        </button>
+      </div>
     </LiveKitRoom>
   );
 };

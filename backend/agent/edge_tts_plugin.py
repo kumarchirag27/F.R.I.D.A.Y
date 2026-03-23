@@ -8,6 +8,7 @@ Wrapped with StreamAdapter in agent.py for per-sentence streaming.
 
 import asyncio
 import logging
+import re
 import struct
 import edge_tts
 import miniaudio
@@ -42,7 +43,28 @@ class EdgeTTS(tts.TTS):
         self._volume = volume
         self._pitch = pitch
 
+    @staticmethod
+    def _clean_text(text: str) -> str:
+        """Strip function call syntax, JSON, and code that the LLM might output."""
+        # Remove <function=...>{...}</function> blocks
+        text = re.sub(r'<function=\w+>\s*\{[^}]*\}\s*</function>', '', text)
+        # Remove <function=...>{...} (unclosed)
+        text = re.sub(r'<function=\w+>\s*\{[^}]*\}', '', text)
+        # Remove standalone JSON-like {..."key":"value"...}
+        text = re.sub(r'\{\s*"[^"]+"\s*:\s*"[^"]*"[^}]*\}', '', text)
+        # Remove run_full_recon, run_dns_recon etc. function names
+        text = re.sub(r'run_\w+', '', text)
+        # Remove leftover angle brackets
+        text = re.sub(r'</?function[^>]*>', '', text)
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
     def synthesize(self, text: str, *, conn_options: APIConnectOptions = APIConnectOptions()) -> "EdgeTTSChunkedStream":
+        # Filter out function call syntax before TTS
+        text = self._clean_text(text)
+        if not text:
+            text = "Processing your request, Boss."
         return EdgeTTSChunkedStream(
             tts=self,
             text=text,

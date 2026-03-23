@@ -1,5 +1,6 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { Trash2, ChevronDown, ChevronRight, Clock, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 
 const scanTypes = [
@@ -19,12 +20,24 @@ const ReconPanel = () => {
   const [allowedTargets, setAllowedTargets] = useState<string[]>([]);
   const [newTarget, setNewTarget] = useState("");
   const [showTargetMgr, setShowTargetMgr] = useState(false);
+  const [scanHistory, setScanHistory] = useState<
+    { target: string; mode: string; time: string; date: string; status: string; summary: string }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(true);
+
+  const fetchHistory = () => {
+    fetch(`${API_BASE}/api/history`)
+      .then((r) => r.json())
+      .then((d) => setScanHistory(d.history || []))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch(`${API_BASE}/api/targets`)
       .then(r => r.json())
       .then(d => setAllowedTargets(d.targets || []))
       .catch(() => {});
+    fetchHistory();
   }, []);
 
   const handleAddTarget = async () => {
@@ -40,6 +53,24 @@ const ReconPanel = () => {
       setAllowedTargets(data.targets || []);
       setNewTarget("");
     } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteScan = async (index: number) => {
+    try {
+      await fetch(`${API_BASE}/api/history/${index}`, { method: "DELETE" });
+      fetchHistory();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      await fetch(`${API_BASE}/api/history`, { method: "DELETE" });
+      fetchHistory();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const canExecute = target.trim().length > 0 && authorized;
@@ -77,15 +108,65 @@ const ReconPanel = () => {
 
       // Store result for IntelReportPanel
       if (data.result) {
+        const r = data.result;
+        const dns = r.run_dns_recon || {};
+        const whois = r.run_whois_lookup || {};
+        const ports = r.scan_ports || {};
+        const headers = r.analyze_headers || {};
+        const osint = r.run_osint_aggregator || {};
+        const subs = r.run_subdomain_enum || {};
+        const ipRecon = r.run_ip_recon || {};
+
+        // Build DNS records — handle both {records:{A:[...]}} and flat {A:"val"} formats
+        const dnsRecords: { type: string; name: string; value: string; ttl: string }[] = [];
+        const dnsSource = dns.records || dns;
+        Object.entries(dnsSource).forEach(([type, val]: [string, any]) => {
+          if (type === "error" || type === "domain") return;
+          if (Array.isArray(val)) {
+            val.forEach((v: any) => dnsRecords.push({ type, name: target, value: String(v), ttl: "" }));
+          } else if (val && String(val).trim()) {
+            dnsRecords.push({ type, name: target, value: String(val), ttl: "" });
+          }
+        });
+
+        // Build open ports — handle {open_ports:[...]}, {ports:"22,80"}, or {ports:[...]}
+        let openPorts: any[] = [];
+        if (Array.isArray(ports.open_ports)) {
+          openPorts = ports.open_ports.map((p: any) => ({ port: p.port ?? p, service: p.service ?? "unknown", state: "open", risk: "LOW" }));
+        } else if (ports.ports && typeof ports.ports === "string" && ports.ports.trim()) {
+          openPorts = ports.ports.split(",").filter(Boolean).map((p: string) => ({ port: p.trim(), service: "unknown", state: "open", risk: "LOW" }));
+        }
+
+        // Build security headers
+        const securityHeaders: any[] = [];
+        if (Array.isArray(headers.missing_headers)) {
+          headers.missing_headers.forEach((h: string) => securityHeaders.push({ header: h, status: "MISSING", value: "" }));
+        }
+        if (headers.headers && typeof headers.headers === "object") {
+          Object.entries(headers.headers).forEach(([k, v]: [string, any]) => securityHeaders.push({ header: k, status: "PRESENT", value: String(v).slice(0, 80) }));
+        }
+
+        // Build OSINT findings
+        const osintFindings: { finding: string; severity: string }[] = [];
+        if (osint.virustotal) osintFindings.push({ finding: `VirusTotal: ${typeof osint.virustotal === "string" ? osint.virustotal : JSON.stringify(osint.virustotal).slice(0, 150)}`, severity: "MEDIUM" });
+        const subList = Array.isArray(subs) ? subs : subs.subdomains;
+        if (subList && subList.length > 0) osintFindings.push({ finding: `${subList.length} subdomains found`, severity: "LOW" });
+        if (whois.registrar) osintFindings.push({ finding: `Registrar: ${whois.registrar}`, severity: "LOW" });
+        if (whois.expiration_date) osintFindings.push({ finding: `Expires: ${whois.expiration_date}`, severity: "LOW" });
+        const geo = ipRecon.geolocation;
+        if (geo) osintFindings.push({ finding: `Location: ${typeof geo === "string" ? geo : JSON.stringify(geo).slice(0, 100)}`, severity: "LOW" });
+        const shodan = ipRecon.shodan;
+        if (shodan) osintFindings.push({ finding: `Shodan: ${typeof shodan === "string" ? shodan : JSON.stringify(shodan).slice(0, 120)}`, severity: "MEDIUM" });
+
         (window as any).__fridayLastResult = {
           target,
           timestamp: new Date().toISOString(),
-          riskScore: data.result.risk_score ?? 50,
+          riskScore: securityHeaders.filter((h: any) => h.status === "MISSING").length > 3 ? 65 : 35,
           executiveSummary: data.message ?? "Scan complete.",
-          dnsRecords: data.result.dns_records ?? [],
-          openPorts: data.result.open_ports ?? [],
-          osintFindings: data.result.osint_findings ?? [],
-          securityHeaders: data.result.security_headers ?? [],
+          dnsRecords,
+          openPorts,
+          osintFindings,
+          securityHeaders,
         };
       }
 
@@ -95,6 +176,7 @@ const ReconPanel = () => {
         ]);
       }
       window.dispatchEvent(new CustomEvent("fridayScanEvent", { detail: { type: "done" } }));
+      fetchHistory(); // Refresh scan history table
     } catch (error: any) {
       if ((window as any).__fridayTerminal) {
         (window as any).__fridayTerminal.pushLines([
@@ -102,6 +184,7 @@ const ReconPanel = () => {
         ]);
       }
       window.dispatchEvent(new CustomEvent("fridayScanEvent", { detail: { type: "done" } }));
+      fetchHistory(); // Refresh even on error
     }
   };
 
@@ -254,6 +337,98 @@ const ReconPanel = () => {
             </div>
           </motion.div>
         )}
+      </div>
+
+      {/* ── Scan History Table ── */}
+      <div className="mt-5 border-t border-primary/10 pt-4">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="hud-label flex items-center gap-2 hover:text-primary transition-none w-full"
+        >
+          {showHistory ? (
+            <ChevronDown className="w-3 h-3 text-primary" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
+          <Clock className="w-3 h-3" />
+          SCAN_HISTORY ({scanHistory.length})
+          {scanHistory.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleClearHistory(); }}
+              className="ml-auto font-display text-[8px] tracking-widest text-red-400/40 hover:text-red-400 uppercase transition-none"
+            >
+              CLEAR ALL
+            </button>
+          )}
+        </button>
+
+        <AnimatePresence>
+          {showHistory && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="overflow-hidden"
+            >
+              {scanHistory.length === 0 ? (
+                <div className="mt-3 border border-primary/10 bg-primary/[0.02] chamfer-sm p-4 text-center">
+                  <p className="font-display text-[9px] tracking-widest text-foreground/25 uppercase">
+                    No scans executed yet
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 border border-primary/15 chamfer-sm overflow-hidden max-h-[200px] overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,212,255,0.2) transparent" }}>
+                  <table className="w-full text-[9px] uppercase tracking-wider">
+                    <thead>
+                      <tr className="bg-primary/[0.05] border-b border-primary/15 sticky top-0">
+                        <th className="text-left px-3 py-2 text-primary/60 font-display">TARGET</th>
+                        <th className="text-left px-3 py-2 text-primary/60 font-display">TYPE</th>
+                        <th className="text-left px-3 py-2 text-primary/60 font-display">TIME</th>
+                        <th className="text-left px-3 py-2 text-primary/60 font-display">STATUS</th>
+                        <th className="text-right px-3 py-2 text-primary/60 font-display w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...scanHistory].reverse().map((scan, i) => {
+                        const realIdx = scanHistory.length - 1 - i;
+                        const statusIcon = scan.status === "done" ? (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400/60" />
+                        ) : scan.status === "error" ? (
+                          <AlertCircle className="w-3 h-3 text-red-400/60" />
+                        ) : (
+                          <Loader2 className="w-3 h-3 text-primary/40 animate-spin" />
+                        );
+                        return (
+                          <tr
+                            key={`${scan.date}-${i}`}
+                            className="border-b border-primary/5 hover:bg-primary/[0.03] group"
+                          >
+                            <td className="px-3 py-1.5 text-primary/70 font-display truncate max-w-[120px]">
+                              {scan.target}
+                            </td>
+                            <td className="px-3 py-1.5 text-foreground/40">{scan.mode}</td>
+                            <td className="px-3 py-1.5 text-foreground/30 font-mono">{scan.time}</td>
+                            <td className="px-3 py-1.5">{statusIcon}</td>
+                            <td className="px-3 py-1.5 text-right">
+                              <button
+                                onClick={() => handleDeleteScan(realIdx)}
+                                className="opacity-0 group-hover:opacity-100 p-1 text-red-400/40 hover:text-red-400 transition-none"
+                                title="Delete scan"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

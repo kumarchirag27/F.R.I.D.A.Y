@@ -25,6 +25,7 @@ from tools.port_scanner import scan_ports
 from tools.subdomain_enum import run_subdomain_enum
 from tools.header_analyzer import analyze_headers
 from tools.osint_aggregator import run_osint_aggregator
+from tools.cyber_news import get_cyber_news
 
 logger = logging.getLogger("friday.tools")
 
@@ -84,8 +85,101 @@ async def friday_osint_aggregator(target: str, is_ip: bool = False) -> str:
     return await asyncio.to_thread(_run_sync, run_osint_aggregator, target, is_ip)
 
 
+@function_tool(name="run_full_recon", description="Run a COMPLETE reconnaissance scan on a domain using ALL available tools: DNS recon, WHOIS lookup, subdomain enumeration (SecurityTrails), header analysis, OSINT (VirusTotal), IP recon (Shodan), and port scanning. Use this when the user says 'run recon', 'full scan', 'scan this target', or any general recon request. This is the preferred tool for comprehensive scanning.")
+async def friday_full_recon(domain: str) -> str:
+    """Run ALL recon tools on the target domain and return combined results."""
+    import socket
+    import httpx
+
+    logger.info(f"[TOOL] FULL RECON -> {domain}")
+    results = {}
+    total_tools = 7
+    completed_count = 0
+
+    async def _safe_run(name, label, fn):
+        nonlocal completed_count
+        try:
+            data = await asyncio.to_thread(lambda: fn())
+            completed_count += 1
+            pct = int((completed_count / total_tools) * 100)
+            logger.info(f"[RECON] {label} done ({pct}%)")
+            # Push progress to frontend via WebSocket
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as c:
+                    await c.post("http://localhost:8000/api/ws-broadcast", json={
+                        "message": f"[RECON] {label} complete — {pct}% done",
+                        "type": "info"
+                    })
+            except Exception:
+                pass
+            return name, data
+        except Exception as e:
+            completed_count += 1
+            return name, {"error": str(e)[:200]}
+
+    domain_tasks = [
+        _safe_run("run_dns_recon", "DNS RECON", lambda: run_dns_recon(domain)),
+        _safe_run("run_whois_lookup", "WHOIS LOOKUP", lambda: run_whois_lookup(domain)),
+        _safe_run("run_subdomain_enum", "SUBDOMAIN ENUM", lambda: run_subdomain_enum(domain)),
+        _safe_run("analyze_headers", "HEADER ANALYSIS", lambda: analyze_headers(f"https://{domain}")),
+        _safe_run("run_osint_aggregator", "OSINT / VIRUSTOTAL", lambda: run_osint_aggregator(domain, is_ip=False)),
+    ]
+
+    # Resolve IP for Shodan + port scan
+    try:
+        ip = socket.gethostbyname(domain)
+        domain_tasks.append(_safe_run("run_ip_recon", "IP RECON / SHODAN", lambda: run_ip_recon(ip)))
+        domain_tasks.append(_safe_run("scan_ports", "PORT SCAN", lambda: scan_ports(ip, "1-100", "basic")))
+        results["resolved_ip"] = ip
+    except Exception:
+        results["resolved_ip"] = None
+        total_tools = 5  # No IP-based tools
+
+    # Run all concurrently
+    completed = await asyncio.gather(*domain_tasks)
+    for name, data in completed:
+        results[name] = data
+
+    # POST results to backend so the frontend INTEL tab can show them
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            await c.post("http://localhost:8000/api/scan-result", json={
+                "target": domain,
+                "result": results,
+            })
+        logger.info("[RECON] Results posted to backend for INTEL tab")
+    except Exception as e:
+        logger.warning(f"[RECON] Failed to post results to backend: {e}")
+
+    # Build summary for LLM
+    summary_parts = [f"Full recon on {domain} complete."]
+    dns = results.get("run_dns_recon", {})
+    if isinstance(dns, dict) and dns.get("records"):
+        record_count = sum(len(v) for v in dns["records"].values() if isinstance(v, list))
+        summary_parts.append(f"{record_count} DNS records found.")
+    subs = results.get("run_subdomain_enum", {})
+    if isinstance(subs, dict) and subs.get("subdomains"):
+        summary_parts.append(f"{len(subs['subdomains'])} subdomains discovered.")
+    hdrs = results.get("analyze_headers", {})
+    if isinstance(hdrs, dict) and hdrs.get("missing_headers"):
+        summary_parts.append(f"{len(hdrs['missing_headers'])} security headers missing.")
+    if results.get("resolved_ip"):
+        summary_parts.append(f"Resolved IP: {results['resolved_ip']}.")
+
+    return json.dumps({"summary": " ".join(summary_parts), "details": results}, indent=2, default=str)
+
+
+@function_tool(name="get_cyber_news", description="Get the latest cybersecurity news headlines from The Hacker News, BleepingComputer, CISA, and Krebs on Security. Use when the user asks for news, latest threats, cyber updates, or security headlines.")
+async def friday_cyber_news(count: int = 5) -> str:
+    """Fetch latest cybersecurity news."""
+    logger.info(f"[TOOL] Cyber News -> fetching {count} articles")
+    return await asyncio.to_thread(_run_sync, get_cyber_news, count)
+
+
 # Export all tools as a list for easy registration
 ALL_TOOLS = [
+    friday_full_recon,
+    friday_cyber_news,
     friday_dns_recon,
     friday_whois_lookup,
     friday_ip_recon,
