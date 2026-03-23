@@ -6,6 +6,12 @@ A voice-controlled AI cybersecurity reconnaissance platform inspired by Tony Sta
 
 ---
 
+## Technical Architecture
+
+![Technical Architecture](screenshots/architecture.png)
+
+---
+
 ## What It Does
 
 Say **"FRIDAY, run recon on example.com"** and it simultaneously runs:
@@ -35,6 +41,19 @@ Then delivers a tactical voice briefing and generates a professional intelligenc
 - **Iron Man HUD** - Real-time CPU, memory, network metrics
 - **Persistent Transcript** - Voice conversations stored in localStorage
 - **No Hardcoded Keys** - All API keys configurable via UI or .env file
+
+---
+
+## Screenshots
+
+### Dashboard - Iron Man HUD
+![Dashboard](screenshots/dashboard.png)
+
+### Settings - LLM Configuration
+![Settings LLM](screenshots/settings-llm.png)
+
+### Settings - API Keys Management
+![Settings API Keys](screenshots/settings-apikeys.png)
 
 ---
 
